@@ -10,21 +10,30 @@
 	}
 
 
-	function is_valid_request($query_params, $shared_secret)
-	{
-		if (!isset($query_params['timestamp'])) return false;
-
-		$seconds_in_a_day = 24 * 60 * 60;
-		$older_than_a_day = $query_params['timestamp'] < (time() - $seconds_in_a_day);
-		if ($older_than_a_day) return false;
-
-		$signature = $query_params['signature'];
-		unset($query_params['signature']);
-
-		foreach ($query_params as $key=>$val) $params[] = "$key=$val";
-		sort($params);
-
-		return (md5($shared_secret.implode('', $params)) === $signature);
+	function is_valid_request($query_params, $shared_secret){
+		if(!is_array($query_params) || empty($query_params['hmac']) || !is_string($query_params['hmac']))
+			return false;
+		$dataString = array();
+		foreach ($query_params as $key => $value) {
+			$key = str_replace('=', '%3D', $key);
+			$key = str_replace('&', '%26', $key);
+			$key = str_replace('%', '%25', $key);
+			$value = str_replace('&', '%26', $value);
+			$value = str_replace('%', '%25', $value);
+			
+			if($key != 'hmac')
+				$dataString[] = $key . '=' . $value;
+		}
+		
+		sort($dataString);
+		
+		$string = implode("&", $dataString);
+		if (version_compare(PHP_VERSION, '5.3.0', '>='))
+			$signature = hash_hmac('sha256', $string, $shared_secret);
+		else
+			$signature = bin2hex(mhash(MHASH_SHA256, $string, $shared_secret));
+				
+		return $query_params['hmac'] == $signature;
 	}
 
 
